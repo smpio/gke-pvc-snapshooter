@@ -3,6 +3,7 @@ import json
 import logging
 import argparse
 import datetime
+import logging.config
 
 import dateutil.parser
 import googleapiclient.errors
@@ -26,6 +27,15 @@ def main():
         logging.basicConfig(level=logging.DEBUG, format=LOG_FORMAT)
     else:
         logging.basicConfig(level=logging.INFO, format=LOG_FORMAT)
+    logging.config.dictConfig({
+        'version': 1,
+        'disable_existing_loggers': False,
+        'loggers': {
+            'googleapiclient.discovery': {
+                'level': 'WARN',
+            }
+        }
+    })
 
     snapshooter = Snapshooter(args.project, args.zone, args.async)
     snapshooter.do_routine()
