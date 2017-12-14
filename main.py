@@ -9,7 +9,7 @@ import dateutil.parser
 import googleapiclient.errors
 import googleapiclient.discovery
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('snapshooter')
 LOG_FORMAT = '[%(asctime)s] %(name)s:%(levelname)s: %(message)s'
 
 
@@ -33,7 +33,10 @@ def main():
         'loggers': {
             'googleapiclient.discovery': {
                 'level': 'WARN',
-            }
+            },
+            'googleapiclient.discovery_cache': {
+                'level': 'ERROR',
+            },
         }
     })
 
