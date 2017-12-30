@@ -21,6 +21,8 @@ def main():
                         help="Don't wait for operations to finish")
     parser.add_argument('--verbose', action='store_true', default=False,
                         help="Enable verbose logging")
+    parser.add_argument('--dry-run', action='store_true', default=False,
+                        help="Just print what going to do")
     args = parser.parse_args()
 
     if args.verbose:
@@ -40,7 +42,7 @@ def main():
         }
     })
 
-    snapshooter = Snapshooter(args.project, args.zone, args.async)
+    snapshooter = Snapshooter(args.project, args.zone, args.async, args.dry_run)
     snapshooter.do_routine()
 
 
@@ -48,10 +50,11 @@ class Snapshooter:
     min_age = datetime.timedelta(hours=23)
     max_age = datetime.timedelta(days=7, hours=1)
 
-    def __init__(self, project, zone, async=False):
+    def __init__(self, project, zone, async=False, dry_run=False):
         self.project = project
         self.zone = zone
         self.async = async
+        self.dry_run = dry_run
         self.compute = googleapiclient.discovery.build('compute', 'v1')
         self.operations = []
 
@@ -125,6 +128,9 @@ class Snapshooter:
 
         log.info('Creating snapshot %s for disk %s', name, disk['name'])
 
+        if self.dry_run:
+            return
+
         operation = self.compute.disks().createSnapshot(disk=disk['name'], project=self.project, zone=self.zone, body={
             'name': name,
             'description': description,
@@ -164,6 +170,9 @@ class Snapshooter:
 
     def delete_snapshot(self, snap):
         log.info('Deleting snapshot %s', snap['name'])
+
+        if self.dry_run:
+            return
 
         operation = self.compute.snapshots().delete(snapshot=snap['name'], project=self.project).execute()
 
