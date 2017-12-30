@@ -99,11 +99,9 @@ class Snapshooter:
             log.info('Skipping')
             return
 
-        if self.is_recent_snapshot_exists(disk):
-            log.info('Skipping')
-            return
+        if not self.is_recent_snapshot_exists(disk):
+            self.make_snapshot(disk)
 
-        self.make_snapshot(disk)
         self.delete_obsolete_snapshots(disk)
 
     def is_snapshots_enabled(self, disk):
