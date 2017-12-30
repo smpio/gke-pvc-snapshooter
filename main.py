@@ -45,8 +45,8 @@ def main():
 
 
 class Snapshooter:
-    min_age = datetime.timedelta(days=1)
-    max_age = datetime.timedelta(days=7)
+    min_age = datetime.timedelta(hours=23)
+    max_age = datetime.timedelta(days=7, hours=1)
 
     def __init__(self, project, zone, async=False):
         self.project = project
