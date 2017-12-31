@@ -1,3 +1,4 @@
+import re
 import time
 import json
 import logging
@@ -49,6 +50,7 @@ def main():
 class Snapshooter:
     min_age = datetime.timedelta(hours=23)
     max_age = datetime.timedelta(days=7, hours=1)
+    description_prefix = '[auto] '
 
     def __init__(self, project, zone, async=False, dry_run=False):
         self.project = project
@@ -142,20 +144,25 @@ class Snapshooter:
         return '{}--{}'.format(basename, ts)
 
     def generate_snapshot_description(self, disk, ts):
-        return disk['description']
+        return '{}{}'.format(self.description_prefix, disk['description'])
 
     def delete_obsolete_snapshots(self, disk):
         now = datetime_now()
 
-        for snap in self.get_snapshots(disk):
+        for snap in self.get_snapshots(disk, only_ours=True):
             if now - snap['_ts'] > self.max_age:
                 self.delete_snapshot(snap)
 
-    def get_snapshots(self, disk):
+    def get_snapshots(self, disk, only_ours=False):
         disk_uri = 'https://www.googleapis.com/compute/v1/projects/{}/zones/{}/disks/{}'.format(self.project,
                                                                                                 self.zone,
                                                                                                 disk['name'])
+
         f = 'sourceDisk eq {}'.format(disk_uri)
+        if only_ours:
+            f = '({}) (description eq {}.*)'.format(f, re.escape(self.description_prefix))
+
+        # https://cloud.google.com/compute/docs/reference/beta/snapshots/list
         snaps = self.compute.snapshots().list(project=self.project, filter=f).execute().get('items', [])
 
         for snap in snaps:
