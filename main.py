@@ -70,30 +70,27 @@ class Snapshooter:
     def handle_disk(self, disk):
         log.info('Checking disk %s', disk['name'])
 
-        if 'description' not in disk:
+        if not disk.get('description'):
             log.info('Skipping disk without description %s', disk['name'])
             return
 
         try:
-            disk['_meta'] = json.loads(disk.get('description'))
+            disk['_meta'] = json.loads(disk['description'])
         except ValueError:
             log.info('Skipping disk with non JSON description %s', disk['name'])
             return
 
-        if 'kubernetes.io/created-for/pv/name' not in disk['_meta']:
+        if not disk['_meta'].get('kubernetes.io/created-for/pv/name'):
             log.info('Skipping disk without PV name in description %s', disk['name'])
             return
 
-        if 'kubernetes.io/created-for/pvc/name' not in disk['_meta']:
+        if not disk['_meta'].get('kubernetes.io/created-for/pvc/name'):
             log.info('Skipping disk without PVC name in description %s', disk['name'])
             return
 
-        if 'kubernetes.io/created-for/pvc/namespace' not in disk['_meta']:
+        if not disk['_meta'].get('kubernetes.io/created-for/pvc/namespace'):
             log.info('Skipping disk without PVC namespace in description %s', disk['name'])
             return
-
-        disk['_meta']['_pvc'] = '{}--{}'.format(disk['_meta']['kubernetes.io/created-for/pvc/namespace'],
-                                                disk['_meta']['kubernetes.io/created-for/pvc/name'])
 
         if not self.is_snapshots_enabled(disk):
             log.info('Skipping')
