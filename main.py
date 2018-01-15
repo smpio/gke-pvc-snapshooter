@@ -48,8 +48,9 @@ def main():
 
 
 class Snapshooter:
-    min_age = datetime.timedelta(hours=23)
-    max_age = datetime.timedelta(days=7, hours=1)
+    bias = datetime.timedelta(hours=1)
+    min_age = datetime.timedelta(days=1)
+    max_age = datetime.timedelta(days=7)
     description_prefix = '[auto] '
 
     def __init__(self, project, zone, async=False, dry_run=False):
@@ -111,7 +112,7 @@ class Snapshooter:
         now = datetime_now()
 
         for snap in self.get_snapshots(disk):
-            if now - snap['_ts'] <= self.min_age:
+            if now - snap['_ts'] <= self.min_age - self.bias:
                 log.info('There is snapshot from %s already', snap['_ts'])
                 return True
 
@@ -150,7 +151,7 @@ class Snapshooter:
         now = datetime_now()
 
         for snap in self.get_snapshots(disk, only_ours=True):
-            if now - snap['_ts'] > self.max_age:
+            if now - snap['_ts'] > self.max_age + self.bias:
                 self.delete_snapshot(snap)
 
     def get_snapshots(self, disk, only_ours=False):
