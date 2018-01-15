@@ -50,7 +50,7 @@ def main():
 class Snapshooter:
     bias = datetime.timedelta(hours=1)
     min_age = datetime.timedelta(days=1)
-    max_age = datetime.timedelta(days=7)
+    max_age = datetime.timedelta(days=30)
     description_prefix = '[auto] '
 
     def __init__(self, project, zone, async=False, dry_run=False):
