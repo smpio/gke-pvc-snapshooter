@@ -67,36 +67,13 @@ class Snapshooter:
         for disk in disks:
             try:
                 self.handle_disk(disk)
-            except Exception as e:
+            except Exception:
                 log.exception('Failed to handle disk %s', disk['name'])
 
     def handle_disk(self, disk):
         log.info('Checking disk %s', disk['name'])
 
-        if not disk.get('description'):
-            log.info('Skipping disk without description %s', disk['name'])
-            return
-
-        try:
-            disk['_meta'] = json.loads(disk['description'])
-        except ValueError:
-            log.info('Skipping disk with non JSON description %s', disk['name'])
-            return
-
-        if not disk['_meta'].get('kubernetes.io/created-for/pv/name'):
-            log.info('Skipping disk without PV name in description %s', disk['name'])
-            return
-
-        if not disk['_meta'].get('kubernetes.io/created-for/pvc/name'):
-            log.info('Skipping disk without PVC name in description %s', disk['name'])
-            return
-
-        if not disk['_meta'].get('kubernetes.io/created-for/pvc/namespace'):
-            log.info('Skipping disk without PVC namespace in description %s', disk['name'])
-            return
-
         if not self.is_snapshots_enabled(disk):
-            log.info('Skipping')
             return
 
         if not self.is_recent_snapshot_exists(disk):
@@ -105,8 +82,30 @@ class Snapshooter:
         self.delete_obsolete_snapshots(disk)
 
     def is_snapshots_enabled(self, disk):
+        if not disk['name'].startswith('gke-'):
+            log.info('Skipping disk without "gke-" prefix %s', disk['name'])
+            return False
+
+        try:
+            disk['_meta'] = json.loads(disk.get('description', ''))
+        except ValueError:
+            log.info('Skipping disk with non JSON description %s', disk['name'])
+            return False
+
+        if not disk['_meta'].get('kubernetes.io/created-for/pv/name'):
+            log.info('Skipping disk without PV name in description %s', disk['name'])
+            return False
+
+        if not disk['_meta'].get('kubernetes.io/created-for/pvc/name'):
+            log.info('Skipping disk without PVC name in description %s', disk['name'])
+            return False
+
+        if not disk['_meta'].get('kubernetes.io/created-for/pvc/namespace'):
+            log.info('Skipping disk without PVC namespace in description %s', disk['name'])
+            return False
+
         # TODO: get PVC using kubeapi, check annotations (like smp.io/backup=true/false). default to true
-        return disk['name'].startswith('gke-')
+        return True
 
     def is_recent_snapshot_exists(self, disk):
         now = datetime_now()
