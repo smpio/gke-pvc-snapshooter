@@ -18,7 +18,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--project', help='Your Google Cloud project ID.', required=True)
     parser.add_argument('--zone', help='Compute Engine zone to deploy to.', required=True)
-    parser.add_argument('--async', action='store_true', default=False,
+    parser.add_argument('--async', action='store_true', default=False, dest='is_async',
                         help="Don't wait for operations to finish")
     parser.add_argument('--verbose', action='store_true', default=False,
                         help="Enable verbose logging")
@@ -43,7 +43,7 @@ def main():
         }
     })
 
-    snapshooter = Snapshooter(args.project, args.zone, args.async, args.dry_run)
+    snapshooter = Snapshooter(args.project, args.zone, args.is_async, args.dry_run)
     snapshooter.do_routine()
 
 
@@ -53,10 +53,10 @@ class Snapshooter:
     max_age = datetime.timedelta(days=30)
     description_prefix = '[auto] '
 
-    def __init__(self, project, zone, async=False, dry_run=False):
+    def __init__(self, project, zone, is_async=False, dry_run=False):
         self.project = project
         self.zone = zone
-        self.async = async
+        self.is_async = is_async
         self.dry_run = dry_run
         self.compute = googleapiclient.discovery.build('compute', 'v1')
         self.operations = []
@@ -133,7 +133,7 @@ class Snapshooter:
             'description': description,
         }).execute()
 
-        if not self.async:
+        if not self.is_async:
             self._wait_for_operation(operation['name'])
 
         self.operations.append(operation)
@@ -178,7 +178,7 @@ class Snapshooter:
 
         operation = self.compute.snapshots().delete(snapshot=snap['name'], project=self.project).execute()
 
-        if not self.async:
+        if not self.is_async:
             self._wait_for_operation(operation['name'])
 
         self.operations.append(operation)
