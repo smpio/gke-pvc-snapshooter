@@ -166,7 +166,8 @@ class Snapshooter:
         snaps = self.compute.snapshots().list(project=self.project, filter=f).execute().get('items', [])
 
         for snap in snaps:
-            snap['_ts'] = dateutil.parser.parse(snap['creationTimestamp'])
+            ts = dateutil.parser.parse(snap['creationTimestamp'])
+            snap['_ts'] = ts.astimezone(datetime.timezone.utc)
 
         return snaps
 
