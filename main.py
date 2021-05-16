@@ -44,7 +44,8 @@ def main():
     })
 
     snapshooter = Snapshooter(args.project, args.zone, args.is_async, args.dry_run)
-    snapshooter.do_routine()
+    snapshooter.create_snapshots()
+    snapshooter.delete_old_snapshots()
 
 
 class Snapshooter:
@@ -61,7 +62,7 @@ class Snapshooter:
         self.compute = googleapiclient.discovery.build('compute', 'v1')
         self.operations = []
 
-    def do_routine(self):
+    def create_snapshots(self):
         disks = self.compute.disks().list(project=self.project, zone=self.zone).execute().get('items', [])
 
         for disk in disks:
@@ -69,6 +70,13 @@ class Snapshooter:
                 self.handle_disk(disk)
             except Exception:
                 log.exception('Failed to handle disk %s', disk['name'])
+
+    def delete_old_snapshots(self):
+        till = datetime_now() - self.max_age
+
+        for snap in self.get_snapshots(only_ours=True):
+            if snap['_ts'] < till:
+                self.delete_snapshot(snap)
 
     def handle_disk(self, disk):
         log.info('Checking disk %s', disk['name'])
@@ -78,8 +86,6 @@ class Snapshooter:
 
         if not self.is_recent_snapshot_exists(disk):
             self.make_snapshot(disk)
-
-        self.delete_obsolete_snapshots(disk)
 
     def is_snapshots_enabled(self, disk):
         if not disk['name'].startswith('gke-'):
@@ -110,7 +116,7 @@ class Snapshooter:
     def is_recent_snapshot_exists(self, disk):
         now = datetime_now()
 
-        for snap in self.get_snapshots(disk):
+        for snap in self.get_snapshots(disk=disk):
             if now - snap['_ts'] <= self.min_age - self.bias:
                 log.info('There is snapshot from %s already', snap['_ts'])
                 return True
@@ -146,24 +152,37 @@ class Snapshooter:
     def generate_snapshot_description(self, disk, ts):
         return '{}{}'.format(self.description_prefix, disk['description'])
 
-    def delete_obsolete_snapshots(self, disk):
-        now = datetime_now()
+    def get_snapshots(self, disk=None, only_ours=False, since=None, till=None):
+        filters = []
 
-        for snap in self.get_snapshots(disk, only_ours=True):
-            if now - snap['_ts'] > self.max_age + self.bias:
-                self.delete_snapshot(snap)
+        if disk:
+            disk_uri = 'https://www.googleapis.com/compute/v1/projects/{}/zones/{}/disks/{}'.format(self.project,
+                                                                                                    self.zone,
+                                                                                                    disk['name'])
+            filters.append(f'(sourceDisk eq {disk_uri})')
 
-    def get_snapshots(self, disk, only_ours=False):
-        disk_uri = 'https://www.googleapis.com/compute/v1/projects/{}/zones/{}/disks/{}'.format(self.project,
-                                                                                                self.zone,
-                                                                                                disk['name'])
-
-        f = 'sourceDisk eq {}'.format(disk_uri)
         if only_ours:
-            f = '({}) (description eq {}.*)'.format(f, re.escape(self.description_prefix))
+            filters.append('(description eq {}.*)'.format(re.escape(self.description_prefix)))
+
+        # doesn't work
+        if since:
+            filters.append('(creationTimestamp>\'{}\')'.format(since.isoformat()))
+        if till:
+            filters.append('(creationTimestamp<\'{}\')'.format(till.isoformat()))
 
         # https://cloud.google.com/compute/docs/reference/beta/snapshots/list
-        snaps = self.compute.snapshots().list(project=self.project, filter=f).execute().get('items', [])
+        f = ' '.join(filters)
+
+        snaps = []
+        next_page_token = ''
+        while next_page_token is not None:
+            page = self.compute.snapshots().list(
+                project=self.project,
+                filter=f,
+                pageToken=next_page_token,
+            ).execute()
+            snaps += page['items']
+            next_page_token = page.get('nextPageToken')
 
         for snap in snaps:
             ts = dateutil.parser.parse(snap['creationTimestamp'])
@@ -172,7 +191,7 @@ class Snapshooter:
         return snaps
 
     def delete_snapshot(self, snap):
-        log.info('Deleting snapshot %s', snap['name'])
+        log.info('Deleting snapshot %s %s', snap['name'], snap.get('description'))
 
         if self.dry_run:
             return
